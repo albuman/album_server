@@ -35,7 +35,7 @@ app.use(async (ctx: Context) => {
 
 const port: number = getPort();
 
-app.listen(port, () => {
+app.listen(port, (): void => {
     console.log(`Server started at port : ${port}`);
 });
 
