@@ -1,37 +1,41 @@
 import * as Koa from 'koa';
-import * as postgres from 'postgres';
-import {dbConfig} from "./src/constants/db";
-import {getAllPhotos, getPhotoById} from "./src/album";
-import {createReadStream} from "fs";
+import {Context} from "koa";
+import {graphqlApi} from "./src/api/graphql";
+import {getPort} from "./src/utils/args";
+import {getResponseError} from "./src/utils/response";
+import {getPostMessage} from "./src/utils/request";
 
 const app = new Koa();
-app.context.psql = postgres(dbConfig);
 
+app.on('error', (err) => {
+    console.error(err);
+});
 
-app.use(async ctx => {
-	// console.log(ctx.path);
-	switch (ctx.path) {
-		case '/image':
-			const {id} = ctx.query;
+app.use(async (ctx: Context) => {
+    if (ctx.path === '/graphql') {
+        let query;
 
-			if(id) {
-				const [photo] = await getPhotoById(ctx, id);
+        if (ctx.req.method === 'POST') {
+            query = await getPostMessage(ctx);
+        } else if (ctx.req.method === 'GET') {
+           query = ctx.query.query;
+        } else {
+            return getResponseError(ctx, new Error(`${ctx.req.method} method is not supported`));
+        }
 
-				if(photo) {
-					ctx.body = createReadStream(photo.path);
-				} else {
-					ctx.body = `No image with id: ${id}`;
-				}
-			} else {
-				ctx.body = 'No id passed';
-			}
-			break;
-		default:
-			const results = await getAllPhotos(ctx);
-			ctx.body = '<img src="/image?id=1"/>';
-			break;
+        const photo = await graphqlApi(query);
+
+        ctx.type = 'application/json';
+        ctx.body = JSON.stringify(photo);
+    } else {
+    	ctx.status = 404;
+    	getResponseError(ctx, new Error(`Not found`));
 	}
 });
 
-app.listen(8000);
+const port: number = getPort();
+
+app.listen(port, () => {
+    console.log(`Server started at port : ${port}`);
+});
 
